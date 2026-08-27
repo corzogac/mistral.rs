@@ -489,15 +489,34 @@ impl QuantMethod for GgufMatMul {
         // - indices: (n_tokens, n_experts_per_tok)
         // - weights (self): (n_experts, out_features, in_features)
         // For CPU and Metal: use dequantize-then-matmul approach
+        // Unquantized weights are F32 (e.g. LFM2.5 GGUF experts); the indexed
+        // MoE matmul requires both operands in the same dtype. Mirror the
+        // forward_raw fallback: widen the activation to F32 and restore after.
+        let original_dtype = x.dtype();
+        let x = if matches!(self.w, QMatMul::Tensor(_) | QMatMul::TensorF16(_))
+            && original_dtype != DType::F32
+        {
+            x.to_dtype(DType::F32)?
+        } else {
+            x.clone()
+        };
         #[cfg(feature = "cuda")]
         let res = if x.device().is_cuda() {
-            cuda::qmatmul_indexed_moe_forward(&self.w, x, indices)?
+            cuda::qmatmul_indexed_moe_forward(&self.w, &x, indices)?
         } else {
-            cpu::cpu_indexed_moe_forward(&self.w, x, indices)?
+            cpu::cpu_indexed_moe_forward(&self.w, &x, indices)?
         };
 
         #[cfg(not(feature = "cuda"))]
-        let res = cpu::cpu_indexed_moe_forward(&self.w, x, indices)?;
+        let res = cpu::cpu_indexed_moe_forward(&self.w, &x, indices)?;
+
+        let res = if matches!(self.w, QMatMul::Tensor(_) | QMatMul::TensorF16(_))
+            && original_dtype != DType::F32
+        {
+            res.to_dtype(original_dtype)?
+        } else {
+            res
+        };
 
         if let Some(b) = &self.b {
             if b.rank() == 2 {
