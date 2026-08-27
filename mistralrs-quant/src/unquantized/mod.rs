@@ -260,6 +260,12 @@ impl QuantMethod for UnquantLinear {
 
                 // Select expert weights: [b*s*k, out_features, in_features]
                 let selected_w = w.index_select(&flat_indices, 0)?;
+                // GGUF unquantized experts can be F32 while activations are
+                // BF16 (e.g. LFM2.5-8B-A1B). Align to the activation dtype so
+                // candle accepts the matmul and cuBLASLt can use BF16 tensor
+                // cores with FP32 accumulate (mirrors llama.cpp, which converts
+                // weights to the compute dtype at the matmul).
+                let selected_w = selected_w.to_dtype(a.dtype())?;
 
                 // Reshape input: [b*s, hidden_dim]
                 let a_flat = a.reshape((b_size * seq_len, hidden_dim))?;
@@ -289,6 +295,7 @@ impl QuantMethod for UnquantLinear {
 
                 // Select expert weights: [n*k, out_features, in_features]
                 let selected_w = w.index_select(&flat_indices, 0)?;
+                let selected_w = selected_w.to_dtype(a.dtype())?;
 
                 // Broadcast input: [n, 1, hidden] -> [n, k, hidden] -> [n*k, hidden]
                 let a_expanded = a
@@ -318,6 +325,7 @@ impl QuantMethod for UnquantLinear {
 
                 let flat_indices = indices.reshape((num_tokens * num_experts_per_tok,))?;
                 let selected_w = w.index_select(&flat_indices, 0)?;
+                let selected_w = selected_w.to_dtype(a.dtype())?;
                 let a_flat = a.reshape((num_tokens * num_experts_per_tok, hidden_dim))?;
 
                 let result = a_flat
@@ -340,6 +348,7 @@ impl QuantMethod for UnquantLinear {
                 let flat = b_size * seq_len * num_experts_per_tok;
                 let flat_indices = indices.reshape((flat,))?;
                 let selected_w = w.index_select(&flat_indices, 0)?;
+                let selected_w = selected_w.to_dtype(a.dtype())?;
                 let a_flat = a.reshape((flat, hidden_dim))?;
 
                 let result = a_flat
