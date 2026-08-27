@@ -154,8 +154,15 @@ fn main() -> Result<(), String> {
         // types. Skip them on MSVC and let the engine fall back to the Fused MoE backend.
         let cutlass_moe = cc_over_80 && !target.contains("msvc");
 
-        if cc_over_80 {
+        // Marlin kernels (GPTQ/AWQ fast path) fail to compile under MSVC/nvcc on
+        // this toolchain (marlin_matmul_awq_bf16.cu: empty nvcc error). They are
+        // not needed for GGUF serving; the Rust side falls back to dequant-based
+        // matmul when has_marlin_kernels is unset.
+        let has_marlin = cc_over_80 && !target.contains("msvc");
+        if has_marlin {
             println!("cargo:rustc-cfg=has_marlin_kernels");
+        }
+        if cc_over_80 {
             println!("cargo:rustc-cfg=has_blockwise_fp8_kernels");
             println!("cargo:rustc-cfg=has_scalar_fp8_kernels");
             println!("cargo:rustc-cfg=has_vector_fp8_kernels");
@@ -191,6 +198,9 @@ fn main() -> Result<(), String> {
                 "grouped_mm_*.cu",
             ]
         };
+        if cc_over_80 && !has_marlin {
+            excluded_files.push("marlin_*.cu");
+        }
         if cc_over_80 && !cutlass_moe {
             excluded_files.push("moe_data.cu");
             excluded_files.push("grouped_mm_*.cu");

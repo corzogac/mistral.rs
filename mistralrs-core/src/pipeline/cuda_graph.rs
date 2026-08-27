@@ -353,6 +353,7 @@ pub(crate) fn cuda_graph_startup_capture_allowed(q_len: usize) -> bool {
     q_len > 0
 }
 
+#[cfg(all(feature = "cuda", target_family = "unix"))]
 pub(crate) fn prepare_fa3_decode_schedules(
     metadata: &PagedAttentionInputMetadata,
 ) -> candle_core::Result<()> {
@@ -2130,6 +2131,7 @@ where
         );
     }
 
+    #[cfg(all(feature = "cuda", target_family = "unix"))]
     if let Err(err) = prepare_fa3_decode_schedules(&metadata) {
         end_cuda_capture_discard(&stream);
         restore_event_tracking_after_capture(&stream, restore_event_tracking);

@@ -15,7 +15,7 @@ pub mod encoder_cache;
 pub mod kv_cache_manager;
 mod layers;
 pub(crate) mod mm_prefix;
-#[cfg(any(all(feature = "cuda", target_family = "unix"), feature = "metal"))]
+#[cfg(any(feature = "cuda", feature = "metal"))]
 pub(crate) mod plan;
 mod scales;
 mod scheduler;

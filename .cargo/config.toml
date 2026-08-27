@@ -1,5 +1,11 @@
 [build]
 rustflags = ["-C", "target-cpu=native"]
 
+# Windows: nvcc-compiled kernels (mistralrsquant.lib, candle-kernels libmoe.a)
+# default to /MT (static CRT). Match them with +crt-static to avoid LNK2038
+# RuntimeLibrary mismatches at link time (mimalloc etc. otherwise build /MD).
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-cpu=native", "-C", "target-feature=+crt-static"]
+
 [target.wasm32-unknown-unknown]
 rustflags = ["-C", "target-feature=+simd128"]
